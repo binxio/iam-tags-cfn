@@ -55,22 +55,35 @@ Resources:
         Version: "2012-10-17"
         Statement:
           - 
-            Sid: "AdminAccess"
+            Sid: "AllowEverythingExceptForExplicitAllow"
             Effect: "Allow"
-            Action:
-              - "*"
+            NotAction:
+              - "ec2:StopInstances"
+              - "ec2:CreateTags"
+              - "ec2:DeleteTags"
             Resource: "*"
           - 
-            Sid: "DenyWhenNotMyInstance"
-            Effect: "Deny"
+            Sid: "ExplicitAllowWithConditionResourceTag"
+            Effect: "Allow"
             Action:
               - "ec2:StopInstances"
               - "ec2:CreateTags"
               - "ec2:DeleteTags"
             Resource: "*"
             Condition:
-              StringNotEquals:
+              StringEquals:
                 "ec2:ResourceTag/Team": "${aws:PrincipalTag/Team}"
+          - 
+            Sid: "ExplicitAllowWithConditionRequestTag"
+            Effect: "Allow"
+            Action:
+              - "ec2:StopInstances"
+              - "ec2:CreateTags"
+              - "ec2:DeleteTags"
+            Resource: "*"
+            Condition:
+              StringEquals:
+                "aws:RequestTag/Team": "${aws:PrincipalTag/Team}"
       Roles:
         - !Ref TeamRedRole
         - !Ref TeamPurpleRole

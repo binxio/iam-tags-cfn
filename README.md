@@ -1,12 +1,10 @@
 # Using IAM Tags
 
-This blog post is an example how to protect your resources created with CloudFormation, and using the recently introduced IAM Tags.
+This blog post is an example how to protect CloudFormation create/update stacks and the resources belonging to the stack. 
 
-We will create two roles: PurpleRole and RedRole. Both are full admin, except, we don't give them access to shutdown an instance, when the instance doesn't have an equal Team tag.
+Situation: you have 2 teams working on the same AWS account. Team Purple and Team Red. They get their own Role, so PurpleRole and RedRole. Both these roles got a IAM tag: Team=Red and Team=Purple. They are allowed to create stacks, and for some resources we want to enforce the use of Tags. Team Purple can only create Ec2 Instances with tag Team=Purple. Otherwise the creation of the stack will fail. Once the Stack is deployed, only the PurpleRole is able to stop the instance. Team Red is not able to stop the instance.
 
-At this moment we cannot use Conditions for CloudFormation Stack Tags. This probably will be added in the future, so we can not only prevent users of terminating an instance, but also from deleting a Stack they not own.
-
-Also, CloudFormation does not support IAM Tagging yet, so we use a custom resource to create the IAM tags.
+In case you want to protect creating, updating or deleting CloudFormation stacks, you should use a CloudFormation Role and give the Role (Purple and Red) different CloudFormation Roles to pass. When the Team Red created a CloudFormation Stack with Role CfnRed, team Purple is not allowed to update or delete the stack because they are not allowed to pass the role.
 
 This is the CloudFormation Resource to create a Role. Nothing special here.
 
@@ -24,7 +22,7 @@ This is the CloudFormation Resource to create a Role. Nothing special here.
             Action: sts:AssumeRole
 ```
 
-Here we use a CloudFormation Custom Resource to add a Tag to the Role.
+Here we use a CloudFormation Custom Resource to add a Tag to the Role. We need a Custom Resource, because IAM tagging is not yet supported in CloudFormation. This will probably be available soon, so we can remove the Custom Resource.
 
 ```yaml
   TeamRedRoleTags:
@@ -71,7 +69,7 @@ def lambda_handler(event, context):
         cfnresponse.send(event, context, cfnresponse.FAILED, {})
 ```
 
-This is the new Condition, which checks if the Role Tag is equal to the Resource (ec2) Tag. If they are different, it results in a Deny. So a RedRole is not able to update the Tag, or to Stop the instance of a Resource which belongs to Team Purple (or any other team). 
+This is the Policy. As you can see I use the NotAction to give full admin permissions, except for 3 actions. So a team Red member can create a stack, but he must add a tag Team=Red. Otherwise the creation will fail. When de deployment is successful, the team Read member can only stop the machine deployed with the Tag Team=Red. And the user is not able to change the Tag to for example Team=Purple, or change Tags part of other stacks.
 
 ```yaml
   FullAccessManagedPolicy:
@@ -81,22 +79,35 @@ This is the new Condition, which checks if the Role Tag is equal to the Resource
         Version: "2012-10-17"
         Statement:
           - 
-            Sid: "AdminAccess"
+            Sid: "AllowEverythingExceptForExplicitAllow"
             Effect: "Allow"
-            Action:
-              - "*"
+            NotAction:
+              - "ec2:StopInstances"
+              - "ec2:CreateTags"
+              - "ec2:DeleteTags"
             Resource: "*"
           - 
-            Sid: "DenyWhenNotMyInstance"
-            Effect: "Deny"
+            Sid: "ExplicitAllowWithConditionResourceTag"
+            Effect: "Allow"
             Action:
               - "ec2:StopInstances"
               - "ec2:CreateTags"
               - "ec2:DeleteTags"
             Resource: "*"
             Condition:
-              StringNotEquals:
+              StringEquals:
                 "ec2:ResourceTag/Team": "${aws:PrincipalTag/Team}"
+          - 
+            Sid: "ExplicitAllowWithConditionRequestTag"
+            Effect: "Allow"
+            Action:
+              - "ec2:StopInstances"
+              - "ec2:CreateTags"
+              - "ec2:DeleteTags"
+            Resource: "*"
+            Condition:
+              StringEquals:
+                "aws:RequestTag/Team": "${aws:PrincipalTag/Team}"
       Roles:
         - !Ref TeamRedRole
         - !Ref TeamPurpleRole
@@ -104,7 +115,18 @@ This is the new Condition, which checks if the Role Tag is equal to the Resource
 
 Now this is deployed, we can assume one of the new roles. For example: RedRole.
 
-Let's deploy a server, with a tag "Team=Red". We are allowed to terminate this instance.
+Let's deploy a server, with a CloudFormation tag "Team=Red". All resources supporting Tags will get this Tag too. For example the Ec2 Instance.
+
+```yaml
+Resources:
+  Ec2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0627e141ce928067c
+      InstanceType: t2.micro
+```
+
+Or you can deploy the instance with explicitly configured Tags. The result will be the same.
 
 ```yaml
 Resources:
@@ -126,12 +148,14 @@ In this case you can assume both roles, but it's a good practice to create a dif
 
 When switching back to your admin account (not using the PurpleRole or RedRole), you are allowed to update the tag, so do this. Just do this to check out the third cool feature: Drift Detection. Now go to CloudFormation, click on the Stack of this instance and Click Drift Detection. Now view the details and visisble is the Tag has been changed manually. 
 
+Clean up by deleting the three stacks.
+
 ## Conclusion
 
 We have learned:
 
-* How to use IAM tagging to protect our deployed assets
+* How to use IAM tagging to protect our deployed resources, in this example: Ec2 instances
 * To use python3.7 for our CloudFormation Custom Resource (launched November 11)
 * Looked into Drift Detection
 
-In the future we will add CloudFormation protection, once this is supported (or we found a work around). And we will add more examples besides Ec2 to make it more useful. Tags on a Stack are automatically set on every Resource part of the Stack, making it very easy to extend this solution. So a RedRole can only create CloudFormation stacks with a tag Team=Red and because the resources get the tag Team=Red too, all resources can easily be protected. This was actually the reason I started this expiriment, but found out CloudFormation tags are not supported in IAM conditions.
+In the future we will add CloudFormation protection, once this [is supported](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_tags.html#access_tags_control-tag-keys) (or we found a work around). And we will add more examples besides EC2 to make it more useful. Tags on a Stack are automatically set on every Resource part of the Stack, making it very easy to extend this solution. So a RedRole can only create CloudFormation stacks with a tag Team=Red and because the resources get the tag Team=Red too, all resources can easily be protected. This was actually the reason I started this expiriment, but found out CloudFormation tags are not supported in IAM conditions.
