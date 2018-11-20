@@ -71,6 +71,37 @@ def lambda_handler(event, context):
         cfnresponse.send(event, context, cfnresponse.FAILED, {})
 ```
 
+This is the new Condition, which checks if the Role Tag is equal to the Resource (ec2) Tag. If they are different, it results in a Deny. So a RedRole is not able to update the Tag, or to Stop the instance of a Resource which belongs to Team Purple (or any other team). 
+
+```yaml
+  FullAccessManagedPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - 
+            Sid: "AdminAccess"
+            Effect: "Allow"
+            Action:
+              - "*"
+            Resource: "*"
+          - 
+            Sid: "DenyWhenNotMyInstance"
+            Effect: "Deny"
+            Action:
+              - "ec2:StopInstances"
+              - "ec2:CreateTags"
+              - "ec2:DeleteTags"
+            Resource: "*"
+            Condition:
+              StringNotEquals:
+                "ec2:ResourceTag/Team": "${aws:PrincipalTag/Team}"
+      Roles:
+        - !Ref TeamRedRole
+        - !Ref TeamPurpleRole
+```
+
 Now this is deployed, we can assume one of the new roles. For example: RedRole.
 
 Let's deploy a server, with a tag "Team=Red". We are allowed to terminate this instance.
