@@ -1,10 +1,12 @@
 # Using IAM Tags
 
-We will create 2 roles: PurpleRole and RedRole. Both are full admin, except, we don't want them to shutdown an instance if it does not belong to their team.
+This blog post is an example how to protect your resources created with CloudFormation, and using the recently introduced IAM Tags.
+
+We will create two roles: PurpleRole and RedRole. Both are full admin, except, we don't give them access to shutdown an instance, when the instance doesn't have an equal Team tag.
 
 At this moment we cannot use Conditions for CloudFormation Stack Tags. This probably will be added in the future, so we can not only prevent users of terminating an instance, but also from deleting a Stack they not own.
 
-Also, CloudFormation does not support IAM Tagging yet, so we use a custom resource.
+Also, CloudFormation does not support IAM Tagging yet, so we use a custom resource to create the IAM tags.
 
 This is the CloudFormation Resource to create a Role. Nothing special here.
 
