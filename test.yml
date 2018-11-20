@@ -1,0 +1,9 @@
+Resources:
+  Ec2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0627e141ce928067c
+      InstanceType: t2.micro
+      Tags:
+        - Key: Team
+          Value: Red

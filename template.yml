@@ -1,0 +1,114 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: "Demo of using IAM tagging"
+
+Resources:
+
+  TeamRedRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS:
+                - !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+  
+  TeamRedRoleTags:
+    Type: Custom::Tags
+    Properties:
+      ServiceToken:
+        !GetAtt Tagging.Arn
+      RoleName: !Ref TeamRedRole
+      Tags:
+        - Key: Team
+          Value: Red
+
+  TeamPurpleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS:
+                - !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+
+  TeamPurpleRoleTags:
+    Type: Custom::Tags
+    Properties:
+      ServiceToken:
+        !GetAtt Tagging.Arn
+      RoleName: !Ref TeamPurpleRole
+      Tags:
+        - Key: Team
+          Value: Purple
+
+  FullAccessManagedPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - 
+            Sid: "AdminAccess"
+            Effect: "Allow"
+            Action:
+              - "*"
+            Resource: "*"
+          - 
+            Sid: "DenyWhenNotMyInstance"
+            Effect: "Deny"
+            Action:
+              - "ec2:StopInstances"
+              - "ec2:CreateTags"
+              - "ec2:DeleteTags"
+            Resource: "*"
+            Condition:
+              StringNotEquals:
+                "ec2:ResourceTag/Team": "${aws:PrincipalTag/Team}"
+      Roles:
+        - !Ref TeamRedRole
+        - !Ref TeamPurpleRole
+
+  Tagging:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: lambda.lambda_handler
+      Timeout: 30
+      Role: !GetAtt 'TaggingRole.Arn'
+      Runtime: python3.7
+      CodeUri: ./build/iamtagging.zip
+
+  TaggingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+          Action: sts:AssumeRole
+      Path: /
+      Policies: 
+        - 
+          PolicyName: "root"
+          PolicyDocument: 
+            Version: "2012-10-17"
+            Statement: 
+              - 
+                Effect: "Allow"
+                Action: 
+                  - "iam:GetUser"
+                  - "iam:GetRole"
+                  - "iam:UntagUser"
+                  - "iam:UntagRole"
+                  - "iam:TagRole"
+                  - "iam:TagUser"
+                Resource: "*"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
