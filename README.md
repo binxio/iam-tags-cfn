@@ -134,4 +134,4 @@ We have learned:
 * To use python3.7 for our CloudFormation Custom Resource (launched November 11)
 * Looked into Drift Detection
 
-In the future we will add CloudFormation protection, once this is supported (or we found a work around). And we will add more examples besides Ec2 to make it more useful. 
+In the future we will add CloudFormation protection, once this is supported (or we found a work around). And we will add more examples besides Ec2 to make it more useful. Tags on a Stack are automatically set on every Resource part of the Stack, making it very easy to extend this solution. So a RedRole can only create CloudFormation stacks with a tag Team=Red and because the resources get the tag Team=Red too, all resources can easily be protected. This was actually the reason I started this expiriment, but found out CloudFormation tags are not supported in IAM conditions.
